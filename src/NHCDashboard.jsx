@@ -182,10 +182,20 @@ export default function NHCDashboard() {
       setFetchError("no-url");
       return;
     }
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(APPS_SCRIPT_URL)}`;
-    fetch(proxyUrl)
-      .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then((data) => setRAW(data))
+    // Try direct, fall back to corsproxy, then allorigins
+    const tryFetch = (url) =>
+      fetch(url).then((r) => r.json()).then((d) => {
+        const data = Array.isArray(d) ? d : (d.contents ? JSON.parse(d.contents) : null);
+        if (!data || !data.length) throw new Error("empty");
+        setRAW(data);
+      });
+
+    const proxy1 = `https://corsproxy.io/?${encodeURIComponent(APPS_SCRIPT_URL)}`;
+    const proxy2 = `https://api.allorigins.win/get?url=${encodeURIComponent(APPS_SCRIPT_URL)}`;
+
+    tryFetch(APPS_SCRIPT_URL)
+      .catch(() => tryFetch(proxy1))
+      .catch(() => tryFetch(proxy2))
       .catch(() => setFetchError("fetch-failed"));
   }, []);
 
