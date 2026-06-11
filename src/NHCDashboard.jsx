@@ -182,7 +182,8 @@ export default function NHCDashboard() {
       setFetchError("no-url");
       return;
     }
-    fetch(APPS_SCRIPT_URL)
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(APPS_SCRIPT_URL)}`;
+    fetch(proxyUrl)
       .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then((data) => setRAW(data))
       .catch(() => setFetchError("fetch-failed"));
