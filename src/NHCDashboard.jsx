@@ -257,10 +257,10 @@ function Dashboard({ RAW }) {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 14, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 11.5, letterSpacing: 2, textTransform: "uppercase", color: C.faint, fontWeight: 600 }}>
-            NHC · Day-over-Day Performance
+            Acquisition Funnel
           </div>
           <div className="nhc-disp" style={{ fontSize: 27, fontWeight: 700, marginTop: 3, letterSpacing: -0.4 }}>
-            Acquisition Funnel
+            NHC · Perf Dashboard
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
