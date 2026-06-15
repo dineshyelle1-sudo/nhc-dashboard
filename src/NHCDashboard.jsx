@@ -481,6 +481,9 @@ function Dashboard({ RAW }) {
         </div>
       </div>
 
+      {/* Day of Week analysis */}
+      <DayOfWeekPanel RAW={RAW} channel={channel} accent={accent} />
+
       <div style={{ fontSize: 11, color: C.faint, marginTop: 16, lineHeight: 1.5 }}>
         Source: “DOD-NHC” tab, NHC Perf Tracker · 2 Apr – 10 Jun 2026. Overall = Google + Meta + Apple Ads. Currency ₹.
         Cost & efficiency metrics (CPI, CPM, CPC, CTR, ROI) are recomputed from summed spend/impressions/clicks for each period.
@@ -563,6 +566,249 @@ function PackMix({ A, accent }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ----------------------------- Day of Week Panel ----------------------------- */
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function DayOfWeekPanel({ RAW, channel, accent }) {
+  const [dowMetric, setDowMetric] = useState("cpi");
+  const [dowView, setDowView] = useState("bar"); // "bar" | "heatmap"
+
+  // Aggregate by day of week
+  const byDow = useMemo(() => {
+    const buckets = {};
+    DAYS.forEach((d) => (buckets[d] = []));
+    RAW.forEach((r) => {
+      const dow = r.day.trim();
+      if (buckets[dow]) buckets[dow].push(r);
+    });
+
+    return DAYS.map((day, i) => {
+      const days = buckets[day];
+      if (!days.length) return { day, short: DAY_SHORT[i], n: 0, cpi: null, roi: null, installs: null, spends: null, revenue: null, ctr: null };
+      const a = aggregate(days, channel);
+      return {
+        day, short: DAY_SHORT[i], n: days.length,
+        cpi: a.cpi, roi: a.roi, installs: a.installs,
+        spends: a.spends, revenue: a.revenue, ctr: a.ctr,
+        cvr: a.cvr,
+      };
+    });
+  }, [RAW, channel]);
+
+  const DOW_METRICS = [
+    { key: "cpi", label: "CPI", fmt: money2, sense: "neg", note: "Lower is better" },
+    { key: "roi", label: "ROI", fmt: roiF, sense: "pos", note: "Higher is better" },
+    { key: "ctr", label: "CTR", fmt: pct, sense: "pos", note: "Higher is better" },
+    { key: "installs", label: "Installs", fmt: cnt, sense: "pos", note: "Volume" },
+    { key: "spends", label: "Spend", fmt: inr, sense: "neutral", note: "Total spend" },
+    { key: "revenue", label: "Revenue", fmt: inr, sense: "pos", note: "Total revenue" },
+  ];
+
+  const mConf = DOW_METRICS.find((m) => m.key === dowMetric);
+  const vals = byDow.map((d) => d[dowMetric]).filter((v) => v != null && !isNaN(v));
+  const maxVal = Math.max(...vals, 1);
+  const minVal = Math.min(...vals);
+  const avgVal = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+
+  // Best/worst day
+  const sense = mConf.sense;
+  const bestDay = byDow.reduce((best, d) => {
+    if (d[dowMetric] == null) return best;
+    if (!best) return d;
+    if (sense === "neg") return d[dowMetric] < best[dowMetric] ? d : best;
+    return d[dowMetric] > best[dowMetric] ? d : best;
+  }, null);
+  const worstDay = byDow.reduce((worst, d) => {
+    if (d[dowMetric] == null) return worst;
+    if (!worst) return d;
+    if (sense === "neg") return d[dowMetric] > worst[dowMetric] ? d : worst;
+    return d[dowMetric] < worst[dowMetric] ? d : worst;
+  }, null);
+
+  // Color scale for bar
+  function barColor(d) {
+    if (d[dowMetric] == null) return C.line2;
+    if (d.day === bestDay?.day) return sense === "neutral" ? accent : C.up;
+    if (d.day === worstDay?.day) return sense === "neutral" ? accent : C.down;
+    return accent + "99";
+  }
+
+  // Heatmap: all 4 efficiency metrics × 7 days
+  const HEAT_METRICS = [
+    { key: "cpi", label: "CPI", sense: "neg", fmt: money2 },
+    { key: "roi", label: "ROI", sense: "pos", fmt: roiF },
+    { key: "ctr", label: "CTR", sense: "pos", fmt: pct },
+    { key: "cvr", label: "Click→Install", sense: "pos", fmt: pct },
+  ];
+
+  function heatColor(val, allVals, sense) {
+    if (val == null || isNaN(val)) return "#F0F2F5";
+    const min = Math.min(...allVals), max = Math.max(...allVals);
+    const t = max === min ? 0.5 : (val - min) / (max - min); // 0–1
+    const score = sense === "neg" ? 1 - t : t; // higher score = better
+    if (score >= 0.75) return "#D1FAE5";
+    if (score >= 0.5) return "#FEF9C3";
+    if (score >= 0.25) return "#FEE2E2";
+    return "#FECACA";
+  }
+
+  return (
+    <div className="nhc-card" style={{ padding: "18px 20px", marginTop: 16 }}>
+      {/* header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+        <div>
+          <div style={{ fontWeight: 650, fontSize: 15 }}>Day of Week Analysis · {CH[channel].label}</div>
+          <div style={{ fontSize: 12, color: C.faint, marginTop: 3 }}>
+            Aggregated across all weeks in dataset — {byDow[0]?.n || 0}–{Math.max(...byDow.map(d => d.n))} data points per day
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <Seg items={[{ key: "bar", label: "Bar view" }, { key: "heatmap", label: "Heatmap" }]}
+            value={dowView} onChange={setDowView} accentMap={() => accent} />
+        </div>
+      </div>
+
+      {dowView === "bar" ? (
+        <>
+          {/* metric selector */}
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 16 }}>
+            {DOW_METRICS.map((m) => (
+              <button key={m.key} onClick={() => setDowMetric(m.key)} style={{
+                border: "none", cursor: "pointer", padding: "5px 12px", borderRadius: 7, fontSize: 12.5,
+                fontWeight: dowMetric === m.key ? 650 : 500,
+                background: dowMetric === m.key ? accent + "1A" : "transparent",
+                color: dowMetric === m.key ? accent : C.sub,
+              }}>{m.label}</button>
+            ))}
+          </div>
+
+          {/* insight strip */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+            {bestDay && (
+              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, padding: "8px 14px", display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 16 }}>🏆</span>
+                <div>
+                  <div style={{ fontSize: 11, color: "#15803D", fontWeight: 600 }}>Best day · {mConf.label}</div>
+                  <div className="nhc-disp" style={{ fontSize: 15, fontWeight: 700, color: "#15803D" }}>
+                    {bestDay.day} — {mConf.fmt(bestDay[dowMetric])}
+                  </div>
+                </div>
+              </div>
+            )}
+            {worstDay && worstDay.day !== bestDay?.day && (
+              <div style={{ background: "#FFF7F7", border: "1px solid #FECACA", borderRadius: 10, padding: "8px 14px", display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 16 }}>⚠️</span>
+                <div>
+                  <div style={{ fontSize: 11, color: "#B91C1C", fontWeight: 600 }}>Weakest day · {mConf.label}</div>
+                  <div className="nhc-disp" style={{ fontSize: 15, fontWeight: 700, color: "#B91C1C" }}>
+                    {worstDay.day} — {mConf.fmt(worstDay[dowMetric])}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div style={{ background: C.line2, borderRadius: 10, padding: "8px 14px" }}>
+              <div style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>Weekly avg · {mConf.label}</div>
+              <div className="nhc-disp" style={{ fontSize: 15, fontWeight: 700 }}>{mConf.fmt(avgVal)}</div>
+            </div>
+          </div>
+
+          {/* bars */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10 }}>
+            {byDow.map((d) => {
+              const w = d[dowMetric] != null ? Math.max(4, (d[dowMetric] / maxVal) * 100) : 0;
+              const isBest = d.day === bestDay?.day;
+              const isWorst = d.day === worstDay?.day && d.day !== bestDay?.day;
+              return (
+                <div key={d.day} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                  {/* value label */}
+                  <div className="nhc-disp" style={{ fontSize: 13, fontWeight: 700, color: isBest ? C.up : isWorst ? C.down : C.ink }}>
+                    {d[dowMetric] != null ? mConf.fmt(d[dowMetric]) : "—"}
+                  </div>
+                  {/* bar */}
+                  <div style={{ width: "100%", height: 160, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                    <div style={{
+                      width: "100%", height: `${w}%`, minHeight: d[dowMetric] != null ? 6 : 0,
+                      background: barColor(d), borderRadius: "6px 6px 0 0",
+                      transition: "height .3s", position: "relative",
+                    }}>
+                      {isBest && <div style={{ position: "absolute", top: -20, width: "100%", textAlign: "center", fontSize: 14 }}>🏆</div>}
+                      {isWorst && <div style={{ position: "absolute", top: -20, width: "100%", textAlign: "center", fontSize: 14 }}>⚠️</div>}
+                    </div>
+                  </div>
+                  {/* day label */}
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: isBest ? C.up : isWorst ? C.down : C.sub }}>{d.short}</div>
+                  <div style={{ fontSize: 10.5, color: C.faint }}>{d.n}w</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* avg reference line note */}
+          <div style={{ marginTop: 12, fontSize: 11.5, color: C.faint }}>
+            {mConf.note} · {mConf.fmt(avgVal)} weekly average · {byDow[0]?.n || 0} weeks of data
+          </div>
+        </>
+      ) : (
+        /* heatmap view */
+        <>
+          <div style={{ fontSize: 12, color: C.sub, marginBottom: 14 }}>
+            Color scale per metric: <span style={{ background: "#D1FAE5", padding: "1px 8px", borderRadius: 4, fontSize: 11 }}>Best</span>{" "}
+            <span style={{ background: "#FEF9C3", padding: "1px 8px", borderRadius: 4, fontSize: 11 }}>Mid</span>{" "}
+            <span style={{ background: "#FECACA", padding: "1px 8px", borderRadius: 4, fontSize: 11 }}>Worst</span>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 4, minWidth: 500 }}>
+              <thead>
+                <tr>
+                  <th style={{ fontSize: 12, color: C.sub, fontWeight: 600, textAlign: "left", paddingBottom: 8, width: 120 }}>Metric</th>
+                  {byDow.map((d) => (
+                    <th key={d.day} style={{ fontSize: 12, color: C.sub, fontWeight: 600, textAlign: "center", paddingBottom: 8 }}>{d.short}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {HEAT_METRICS.map((hm) => {
+                  const rowVals = byDow.map((d) => d[hm.key]).filter((v) => v != null && !isNaN(v));
+                  return (
+                    <tr key={hm.key}>
+                      <td style={{ fontSize: 12.5, fontWeight: 600, color: C.ink, paddingRight: 12, paddingBottom: 6 }}>
+                        {hm.label}
+                        <div style={{ fontSize: 10.5, color: C.faint, fontWeight: 400 }}>{hm.sense === "neg" ? "↓ lower better" : "↑ higher better"}</div>
+                      </td>
+                      {byDow.map((d) => {
+                        const val = d[hm.key];
+                        const bg = heatColor(val, rowVals, hm.sense);
+                        return (
+                          <td key={d.day} style={{
+                            background: bg, borderRadius: 8, textAlign: "center",
+                            padding: "10px 4px", fontSize: 12.5, fontWeight: 700,
+                            color: "#1F2937", minWidth: 72,
+                          }}>
+                            <div className="nhc-disp">{val != null ? hm.fmt(val) : "—"}</div>
+                            {d.day === byDow.reduce((b, x) => {
+                              if (x[hm.key] == null) return b;
+                              if (!b) return x;
+                              return hm.sense === "neg" ? (x[hm.key] < b[hm.key] ? x : b) : (x[hm.key] > b[hm.key] ? x : b);
+                            }, null)?.day && <div style={{ fontSize: 9, marginTop: 2 }}>🏆</div>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop: 12, fontSize: 11.5, color: C.faint }}>
+            Each cell aggregates all {byDow[0]?.n || 0} {DAY_SHORT[0]}s (etc.) in the dataset. Efficiency metrics recomputed from summed spend/installs per day-of-week bucket.
+          </div>
+        </>
+      )}
     </div>
   );
 }
