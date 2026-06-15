@@ -397,6 +397,7 @@ function Dashboard({ RAW }) {
             <Outcome label="ROI" value={roiF(A.roi)} d={compare && P ? delta(A.roi, P.roi, "pos") : null} accent={accent} na={isApple && !A.spends} />
             <Outcome label="CPI" value={money2(A.cpi)} d={compare && P ? delta(A.cpi, P.cpi, "neg") : null} accent={accent} na={isApple && !A.spends} />
           </div>
+          <AutoInsight type="funnel" A={A} P={P} channel={channel} accent={accent} />
         </div>
 
         {/* breakdown */}
@@ -407,6 +408,7 @@ function Dashboard({ RAW }) {
           {channel === "overall"
             ? <ChannelMix days={cur.days} />
             : <PackMix A={A} accent={accent} />}
+          <AutoInsight type="breakdown" A={A} P={P} channel={channel} accent={accent} days={cur.days} />
         </div>
       </div>
 
@@ -474,11 +476,12 @@ function Dashboard({ RAW }) {
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        <div style={{ fontSize: 11, color: C.faint, padding: "4px 2px 10px" }}>
+        <div style={{ fontSize: 11, color: C.faint, padding: "4px 2px 4px" }}>
           {isDailyTrend
             ? `Shaded band = selected period${compare && prev ? "; grey band = compare period" : ""}.`
             : `Solid bar = selected period${compare && prev ? "; grey = compare period" : ""}; lighter bars = other ${trendGran === "weekly" ? "weeks" : "months"}.`}
         </div>
+        <AutoInsight type="trend" A={A} P={P} channel={channel} accent={accent} series={series} trendMetric={trendMetric} trendGran={trendGran} />
       </div>
 
       {/* Day of Week analysis */}
@@ -752,6 +755,7 @@ function DayOfWeekPanel({ days, label, channel, accent }) {
           <div style={{ marginTop: 12, fontSize: 11.5, color: C.faint }}>
             {mConf.note} · {mConf.fmt(avgVal)} avg across selected period · {days.length} days of data
           </div>
+          <AutoInsight type="dow" byDow={byDow} dowMetric={dowMetric} mConf={mConf} accent={accent} avgVal={avgVal} />
         </>
       ) : (
         /* heatmap view */
@@ -809,6 +813,174 @@ function DayOfWeekPanel({ days, label, channel, accent }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ----------------------------- AutoInsight ----------------------------- */
+function AutoInsight({ type, A, P, channel, accent, days, series, trendMetric, trendGran, byDow, dowMetric, mConf, avgVal }) {
+  const insights = [];
+
+  if (type === "funnel" && A) {
+    // CPI insight
+    if (A.cpi != null) {
+      if (P && P.cpi) {
+        const d = delta(A.cpi, P.cpi, "neg");
+        if (d && d.dir !== "flat") {
+          const better = d.good === "good";
+          insights.push({
+            icon: better ? "📉" : "📈",
+            good: better,
+            text: `CPI ${better ? "improved" : "worsened"} by ${Math.abs(d.pctChange * 100).toFixed(1)}% vs previous period — ${money2(A.cpi)} vs ${money2(P.cpi)}.`
+          });
+        }
+      } else {
+        if (A.cpi < 100) insights.push({ icon: "✅", good: true, text: `CPI is ${money2(A.cpi)} — efficient acquisition for the period.` });
+        else if (A.cpi > 300) insights.push({ icon: "⚠️", good: false, text: `CPI is ${money2(A.cpi)} — relatively high; consider reviewing targeting.` });
+      }
+    }
+    // ROI insight
+    if (A.roi != null && !isNaN(A.roi)) {
+      if (A.roi >= 1.5) insights.push({ icon: "🚀", good: true, text: `Strong ROI of ${roiF(A.roi)} — revenue well exceeds spend for this period.` });
+      else if (A.roi >= 1) insights.push({ icon: "📊", good: null, text: `ROI of ${roiF(A.roi)} — spend is being recovered but headroom is limited.` });
+      else if (A.roi > 0) insights.push({ icon: "⚠️", good: false, text: `ROI of ${roiF(A.roi)} — spend is not yet recovered in D0 revenue; check D30 packs for full picture.` });
+    }
+    // Funnel drop-off
+    if (A.impr > 0 && A.installs > 0) {
+      const impToClick = A.impr ? A.clicks / A.impr : 0;
+      const clickToInstall = A.clicks ? A.installs / A.clicks : 0;
+      const bottleneck = impToClick < 0.01 ? "impression→click" : clickToInstall < 0.005 ? "click→install" : null;
+      if (bottleneck) insights.push({ icon: "🔍", good: false, text: `Biggest funnel drop-off at ${bottleneck} stage — worth investigating creative or landing page quality.` });
+    }
+    // D30 packs
+    if (A.d30packs > 0 && A.installs > 0) {
+      const rate = A.d30packs / A.installs;
+      if (rate > 0.05) insights.push({ icon: "🎯", good: true, text: `${pct(rate)} of installs converted to a D30 pack — healthy downstream monetisation.` });
+      else insights.push({ icon: "💡", good: null, text: `${pct(rate)} install-to-D30-pack rate — room to improve onboarding or pack offer timing.` });
+    }
+  }
+
+  if (type === "breakdown" && A) {
+    if (channel === "overall" && days && days.length > 0) {
+      const gAgg = aggregate(days, "google");
+      const mAgg = aggregate(days, "meta");
+      const aAgg = aggregate(days, "apple");
+      const totalSpend = gAgg.spends + mAgg.spends + aAgg.spends;
+      if (totalSpend > 0) {
+        const domCh = gAgg.spends > mAgg.spends ? "Google" : "Meta";
+        const domPct = ((Math.max(gAgg.spends, mAgg.spends) / totalSpend) * 100).toFixed(0);
+        insights.push({ icon: "📡", good: null, text: `${domCh} dominates spend at ${domPct}% of total budget this period.` });
+        // Efficiency comparison
+        if (gAgg.cpi && mAgg.cpi) {
+          const effCh = gAgg.cpi < mAgg.cpi ? "Google" : "Meta";
+          insights.push({ icon: "💡", good: true, text: `${effCh} has the lower CPI (${money2(Math.min(gAgg.cpi, mAgg.cpi))} vs ${money2(Math.max(gAgg.cpi, mAgg.cpi))}) — more cost-efficient installs this period.` });
+        }
+        if (gAgg.roi && mAgg.roi) {
+          const roiCh = gAgg.roi > mAgg.roi ? "Google" : "Meta";
+          insights.push({ icon: "📈", good: true, text: `${roiCh} delivers better ROI (${roiF(Math.max(gAgg.roi, mAgg.roi))} vs ${roiF(Math.min(gAgg.roi, mAgg.roi))}).` });
+        }
+      }
+    } else if (channel !== "overall") {
+      if (A.d30packs > A.d7packs && A.d7packs > A.d0packs) {
+        insights.push({ icon: "📈", good: true, text: `Pack maturation is healthy — D30 packs (${intf(A.d30packs)}) significantly exceed D0 (${intf(A.d0packs)}), showing strong late converters.` });
+      } else if (A.d0packs > 0 && A.d30packs < A.d0packs * 1.2) {
+        insights.push({ icon: "💡", good: null, text: `Most packs are converted on D0 (${intf(A.d0packs)}) with limited additional uplift by D30 — consider re-engagement campaigns.` });
+      }
+    }
+  }
+
+  if (type === "trend" && series && series.length > 0) {
+    const validPts = series.filter(s => s.value != null && !isNaN(s.value));
+    if (validPts.length > 1) {
+      const vals = validPts.map(s => s.value);
+      const maxPt = validPts.reduce((a, b) => b.value > a.value ? b : a);
+      const minPt = validPts.reduce((a, b) => b.value < a.value ? b : a);
+      const firstHalf = vals.slice(0, Math.floor(vals.length / 2));
+      const secondHalf = vals.slice(Math.floor(vals.length / 2));
+      const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+      const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+      const trend = secondAvg > firstAvg * 1.05 ? "upward" : secondAvg < firstAvg * 0.95 ? "downward" : "flat";
+      const mLabel = M[trendMetric]?.label || trendMetric;
+      const mFmt = M[trendMetric]?.fmt || (v => v);
+      const sense = M[trendMetric]?.sense;
+
+      if (trend !== "flat") {
+        const isGood = (sense === "pos" && trend === "upward") || (sense === "neg" && trend === "downward");
+        insights.push({
+          icon: trend === "upward" ? "📈" : "📉",
+          good: sense === "neutral" ? null : isGood,
+          text: `${mLabel} shows a ${trend} trend across the period — ${trendGran === "daily" ? "daily" : trendGran} average moved from ${mFmt(firstAvg)} (first half) to ${mFmt(secondAvg)} (second half).`
+        });
+      } else {
+        insights.push({ icon: "➡️", good: null, text: `${mLabel} is relatively stable across the period — consistent performance with no strong directional shift.` });
+      }
+      insights.push({ icon: "🔺", good: null, text: `Peak ${mLabel}: ${mFmt(maxPt.value)} on ${maxPt.label}. Trough: ${mFmt(minPt.value)} on ${minPt.label}.` });
+    }
+  }
+
+  if (type === "dow" && byDow && mConf) {
+    const validDays = byDow.filter(d => d[dowMetric] != null && !isNaN(d[dowMetric]) && d.n > 0);
+    if (validDays.length > 1) {
+      const sense = mConf.sense;
+      const best = validDays.reduce((a, b) => sense === "neg" ? (b[dowMetric] < a[dowMetric] ? b : a) : (b[dowMetric] > a[dowMetric] ? b : a));
+      const worst = validDays.reduce((a, b) => sense === "neg" ? (b[dowMetric] > a[dowMetric] ? b : a) : (b[dowMetric] < a[dowMetric] ? b : a));
+      const spread = Math.abs((best[dowMetric] - worst[dowMetric]) / (avgVal || 1));
+
+      insights.push({
+        icon: "🗓️", good: null,
+        text: `${best.day} is the best day for ${mConf.label} (${mConf.fmt(best[dowMetric])}), while ${worst.day} is the weakest (${mConf.fmt(worst[dowMetric])}).`
+      });
+
+      if (spread > 0.25) {
+        insights.push({
+          icon: "⚡", good: true,
+          text: `There's a ${(spread * 100).toFixed(0)}% gap between the best and worst day — strong opportunity to shift budget toward ${best.day}s.`
+        });
+      } else {
+        insights.push({
+          icon: "📊", good: null,
+          text: `Day-of-week variation is relatively low (${(spread * 100).toFixed(0)}% spread) — performance is fairly consistent across the week.`
+        });
+      }
+
+      // Weekend vs weekday
+      const weekdays = validDays.filter(d => !["Saturday", "Sunday"].includes(d.day));
+      const weekends = validDays.filter(d => ["Saturday", "Sunday"].includes(d.day));
+      if (weekdays.length && weekends.length) {
+        const wdAvg = weekdays.reduce((s, d) => s + d[dowMetric], 0) / weekdays.length;
+        const weAvg = weekends.reduce((s, d) => s + d[dowMetric], 0) / weekends.length;
+        const weBetter = sense === "neg" ? weAvg < wdAvg : weAvg > wdAvg;
+        const diff = Math.abs((weAvg - wdAvg) / wdAvg * 100).toFixed(0);
+        if (diff > 5) {
+          insights.push({
+            icon: weBetter ? "🛋️" : "💼", good: null,
+            text: `${weBetter ? "Weekends" : "Weekdays"} outperform ${weBetter ? "weekdays" : "weekends"} on ${mConf.label} by ~${diff}% on average.`
+          });
+        }
+      }
+    }
+  }
+
+  if (!insights.length) return null;
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line2}` }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", color: C.faint, marginBottom: 8 }}>
+        ✦ Insights
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {insights.map((ins, i) => (
+          <div key={i} style={{
+            display: "flex", gap: 10, alignItems: "flex-start",
+            background: ins.good === true ? "#F0FDF4" : ins.good === false ? "#FFF7F7" : C.line2,
+            borderRadius: 9, padding: "8px 12px",
+            borderLeft: `3px solid ${ins.good === true ? C.up : ins.good === false ? C.down : accent + "66"}`,
+          }}>
+            <span style={{ fontSize: 14, lineHeight: 1.6, flexShrink: 0 }}>{ins.icon}</span>
+            <span style={{ fontSize: 12.5, lineHeight: 1.65, color: C.ink }}>{ins.text}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
