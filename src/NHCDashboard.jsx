@@ -482,7 +482,7 @@ function Dashboard({ RAW }) {
       </div>
 
       {/* Day of Week analysis */}
-      <DayOfWeekPanel RAW={RAW} channel={channel} accent={accent} />
+      <DayOfWeekPanel days={cur.days} label={cur.label} channel={channel} accent={accent} />
 
       <div style={{ fontSize: 11, color: C.faint, marginTop: 16, lineHeight: 1.5 }}>
         Source: “DOD-NHC” tab, NHC Perf Tracker · 2 Apr – 10 Jun 2026. Overall = Google + Meta + Apple Ads. Currency ₹.
@@ -574,31 +574,31 @@ function PackMix({ A, accent }) {
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const DAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function DayOfWeekPanel({ RAW, channel, accent }) {
+function DayOfWeekPanel({ days, label, channel, accent }) {
   const [dowMetric, setDowMetric] = useState("cpi");
   const [dowView, setDowView] = useState("bar"); // "bar" | "heatmap"
 
-  // Aggregate by day of week
+  // Aggregate by day of week — only from the selected period's days
   const byDow = useMemo(() => {
     const buckets = {};
     DAYS.forEach((d) => (buckets[d] = []));
-    RAW.forEach((r) => {
+    days.forEach((r) => {
       const dow = r.day.trim();
       if (buckets[dow]) buckets[dow].push(r);
     });
 
     return DAYS.map((day, i) => {
-      const days = buckets[day];
-      if (!days.length) return { day, short: DAY_SHORT[i], n: 0, cpi: null, roi: null, installs: null, spends: null, revenue: null, ctr: null };
-      const a = aggregate(days, channel);
+      const ds = buckets[day];
+      if (!ds.length) return { day, short: DAY_SHORT[i], n: 0, cpi: null, roi: null, installs: null, spends: null, revenue: null, ctr: null, cvr: null };
+      const a = aggregate(ds, channel);
       return {
-        day, short: DAY_SHORT[i], n: days.length,
+        day, short: DAY_SHORT[i], n: ds.length,
         cpi: a.cpi, roi: a.roi, installs: a.installs,
         spends: a.spends, revenue: a.revenue, ctr: a.ctr,
         cvr: a.cvr,
       };
     });
-  }, [RAW, channel]);
+  }, [days, channel]);
 
   const DOW_METRICS = [
     { key: "cpi", label: "CPI", fmt: money2, sense: "neg", note: "Lower is better" },
@@ -664,7 +664,7 @@ function DayOfWeekPanel({ RAW, channel, accent }) {
         <div>
           <div style={{ fontWeight: 650, fontSize: 15 }}>Day of Week Analysis · {CH[channel].label}</div>
           <div style={{ fontSize: 12, color: C.faint, marginTop: 3 }}>
-            Aggregated across all weeks in dataset — {byDow[0]?.n || 0}–{Math.max(...byDow.map(d => d.n))} data points per day
+            Based on <b style={{ color: C.sub }}>{label}</b> · {days.length} day{days.length !== 1 ? "s" : ""} · {byDow.filter(d => d.n > 0).length} day-of-week buckets with data
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -750,7 +750,7 @@ function DayOfWeekPanel({ RAW, channel, accent }) {
 
           {/* avg reference line note */}
           <div style={{ marginTop: 12, fontSize: 11.5, color: C.faint }}>
-            {mConf.note} · {mConf.fmt(avgVal)} weekly average · {byDow[0]?.n || 0} weeks of data
+            {mConf.note} · {mConf.fmt(avgVal)} avg across selected period · {days.length} days of data
           </div>
         </>
       ) : (
@@ -805,7 +805,7 @@ function DayOfWeekPanel({ RAW, channel, accent }) {
             </table>
           </div>
           <div style={{ marginTop: 12, fontSize: 11.5, color: C.faint }}>
-            Each cell aggregates all {byDow[0]?.n || 0} {DAY_SHORT[0]}s (etc.) in the dataset. Efficiency metrics recomputed from summed spend/installs per day-of-week bucket.
+            Each cell aggregates all occurrences of that day within <b>{label}</b>. Efficiency metrics recomputed from summed spend/installs per day-of-week bucket.
           </div>
         </>
       )}
