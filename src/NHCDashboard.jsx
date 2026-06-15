@@ -29,7 +29,14 @@ const FIELDS = ["spends", "impr", "clicks", "installs", "d0packs", "d7packs", "d
 function dayChannel(rec, ch) {
   if (ch === "overall") {
     const o = {};
-    FIELDS.forEach((f) => (o[f] = rec.google[f] + rec.meta[f] + rec.apple[f]));
+    FIELDS.forEach((f) => {
+      // Revenue: Google + Meta only (Apple revenue is attributed differently)
+      if (f === "revenue") {
+        o[f] = rec.google[f] + rec.meta[f];
+      } else {
+        o[f] = rec.google[f] + rec.meta[f] + rec.apple[f];
+      }
+    });
     o.organic = rec.organic;
     return o;
   }
@@ -257,10 +264,10 @@ function Dashboard({ RAW }) {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 14, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 11.5, letterSpacing: 2, textTransform: "uppercase", color: C.faint, fontWeight: 600 }}>
-            Acquisition Funnel
+            NHC · Day-over-Day Performance
           </div>
           <div className="nhc-disp" style={{ fontSize: 27, fontWeight: 700, marginTop: 3, letterSpacing: -0.4 }}>
-            NHC · Perf Dashboard
+            Acquisition Funnel
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
