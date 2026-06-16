@@ -192,28 +192,45 @@ function Dashboard({ RAW }) {
   const [compare, setCompare] = useState(true);
   const [trendMetric, setTrendMetric] = useState("spends");
   const [trendGran, setTrendGran] = useState("daily");
+  const [trendChannels, setTrendChannels] = useState(["overall", "google", "meta"]);
   const [cStart, setCStart] = useState(RAW[Math.max(0, RAW.length - 7)].date);
   const [cEnd, setCEnd] = useState(RAW[RAW.length - 1].date);
+  const [compareMode, setCompareMode] = useState("auto"); // "auto" | "custom"
+  const [cpStart, setCpStart] = useState(RAW[0].date);
+  const [cpEnd, setCpEnd] = useState(RAW[Math.max(0, RAW.length - 8)].date);
 
   const accent = CH[channel].color;
   const periods = useMemo(() => buildPeriods(RAW, gran === "custom" ? "daily" : gran), [gran]);
 
   /* resolve current + previous period */
   const { cur, prev } = useMemo(() => {
+    let curPeriod, autoPrev;
+
     if (gran === "custom") {
       const s = cStart <= cEnd ? cStart : cEnd, e = cStart <= cEnd ? cEnd : cStart;
       const days = RAW.filter((r) => r.date >= s && r.date <= e);
       const len = Math.round((parse(e) - parse(s)) / 864e5) + 1;
       const pe = iso(addDays(parse(s), -1)), ps = iso(addDays(parse(s), -len));
       const pdays = RAW.filter((r) => r.date >= ps && r.date <= pe);
-      return {
-        cur: { label: `${fmtD(s)} – ${fmtD(e)}`, days, start: s, end: e },
-        prev: pdays.length ? { label: `${fmtD(ps)} – ${fmtD(pe)}`, days: pdays } : null,
-      };
+      curPeriod = { label: `${fmtD(s)} – ${fmtD(e)}`, days, start: s, end: e };
+      autoPrev = pdays.length ? { label: `${fmtD(ps)} – ${fmtD(pe)}`, days: pdays } : null;
+    } else {
+      const i = idx == null ? periods.length - 1 : Math.min(idx, periods.length - 1);
+      curPeriod = periods[i];
+      autoPrev = i > 0 ? periods[i - 1] : null;
     }
-    const i = idx == null ? periods.length - 1 : Math.min(idx, periods.length - 1);
-    return { cur: periods[i], prev: i > 0 ? periods[i - 1] : null };
-  }, [gran, idx, periods, cStart, cEnd]);
+
+    // Custom compare range overrides auto prev when enabled
+    let resolvedPrev = autoPrev;
+    if (compare && compareMode === "custom") {
+      const ps = cpStart <= cpEnd ? cpStart : cpEnd;
+      const pe = cpStart <= cpEnd ? cpEnd : cpStart;
+      const pdays = RAW.filter((r) => r.date >= ps && r.date <= pe);
+      resolvedPrev = pdays.length ? { label: `${fmtD(ps)} – ${fmtD(pe)}`, days: pdays } : null;
+    }
+
+    return { cur: curPeriod, prev: resolvedPrev };
+  }, [gran, idx, periods, cStart, cEnd, compareMode, cpStart, cpEnd, compare]);
 
   const A = useMemo(() => aggregate(cur.days, channel), [cur, channel]);
   const P = useMemo(() => (compare && prev ? aggregate(prev.days, channel) : null), [prev, channel, compare]);
@@ -223,16 +240,32 @@ function Dashboard({ RAW }) {
   const curS = cur.days[0].date, curE = cur.days[cur.days.length - 1].date;
   const prevS = prev ? prev.days[0].date : null, prevE = prev ? prev.days[prev.days.length - 1].date : null;
   const trendPeriods = useMemo(() => buildPeriods(RAW, trendGran), [trendGran]);
+
+  // Multi-channel series: each point has a value per active channel
   const series = useMemo(
     () => trendPeriods.map((p) => {
-      const ag = aggregate(p.days, channel);
-      const sel = p.start <= curE && p.end >= curS;
-      const cmp = !!(compare && prevS && p.start <= prevE && p.end >= prevS);
-      return { date: p.start, label: p.label, value: ag[trendMetric] ?? null, sel, cmp };
+      const pt = { date: p.start, label: p.label };
+      ["overall", "google", "meta", "apple"].forEach((ch) => {
+        const ag = aggregate(p.days, ch);
+        pt[ch] = ag[trendMetric] ?? null;
+      });
+      pt.sel = p.start <= curE && p.end >= curS;
+      pt.cmp = !!(compare && prevS && p.start <= prevE && p.end >= prevS);
+      return pt;
     }),
-    [trendPeriods, channel, trendMetric, curS, curE, prevS, prevE, compare]
+    [trendPeriods, trendMetric, curS, curE, prevS, prevE, compare]
   );
   const isDailyTrend = trendGran === "daily";
+
+  const toggleTrendChannel = (ch) => {
+    setTrendChannels((prev) => {
+      if (prev.includes(ch)) {
+        // keep at least one active
+        return prev.length > 1 ? prev.filter((c) => c !== ch) : prev;
+      }
+      return [...prev, ch];
+    });
+  };
 
   const channelItems = Object.values(CH);
   const isApple = channel === "apple";
@@ -305,16 +338,46 @@ function Dashboard({ RAW }) {
 
         <div style={{ flex: 1 }} />
 
-        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
-          <span style={{ fontSize: 13, color: C.sub, fontWeight: 500 }}>Compare to previous</span>
-          <span onClick={() => setCompare((v) => !v)} style={{
-            width: 38, height: 22, borderRadius: 12, background: compare ? accent : "#D3D7DD",
-            position: "relative", transition: "background .15s",
-          }}>
-            <span style={{ position: "absolute", top: 2, left: compare ? 18 : 2, width: 18, height: 18, borderRadius: "50%",
-              background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.25)", transition: "left .15s" }} />
-          </span>
-        </label>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {/* Compare toggle */}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
+            <span style={{ fontSize: 13, color: C.sub, fontWeight: 500 }}>Compare</span>
+            <span onClick={() => setCompare((v) => !v)} style={{
+              width: 38, height: 22, borderRadius: 12, background: compare ? accent : "#D3D7DD",
+              position: "relative", transition: "background .15s", cursor: "pointer",
+            }}>
+              <span style={{ position: "absolute", top: 2, left: compare ? 18 : 2, width: 18, height: 18, borderRadius: "50%",
+                background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.25)", transition: "left .15s" }} />
+            </span>
+          </label>
+
+          {/* Compare mode selector — only when compare is on */}
+          {compare && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Seg
+                items={[{ key: "auto", label: "Previous period" }, { key: "custom", label: "Custom range" }]}
+                value={compareMode}
+                onChange={setCompareMode}
+                accentMap={() => C.neutral}
+              />
+              {compareMode === "custom" && (
+                <div style={{ display: "flex", gap: 6, alignItems: "center", color: C.sub, fontSize: 13 }}>
+                  <input
+                    type="date" min={RAW[0].date} max={RAW[RAW.length - 1].date}
+                    value={cpStart} onChange={(e) => setCpStart(e.target.value)}
+                    style={{ fontSize: 12, padding: "4px 7px" }}
+                  />
+                  <span>–</span>
+                  <input
+                    type="date" min={RAW[0].date} max={RAW[RAW.length - 1].date}
+                    value={cpEnd} onChange={(e) => setCpEnd(e.target.value)}
+                    style={{ fontSize: 12, padding: "4px 7px" }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* period summary line */}
@@ -414,33 +477,59 @@ function Dashboard({ RAW }) {
 
       {/* trend */}
       <div className="nhc-card" style={{ padding: "18px 20px 8px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ fontWeight: 650, fontSize: 15 }}>
-              {isDailyTrend ? "Daily" : trendGran === "weekly" ? "Weekly" : "Monthly"} trend · {CH[channel].label}
+        {/* header row */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ fontWeight: 650, fontSize: 15 }}>
+                {isDailyTrend ? "Daily" : trendGran === "weekly" ? "Weekly" : "Monthly"} trend
+              </div>
+              <Seg items={[{ key: "daily", label: "Daily" }, { key: "weekly", label: "Weekly" }, { key: "monthly", label: "Monthly" }]}
+                value={trendGran} onChange={setTrendGran} accentMap={() => C.ink} />
             </div>
-            <Seg items={[{ key: "daily", label: "Daily" }, { key: "weekly", label: "Weekly" }, { key: "monthly", label: "Monthly" }]}
-              value={trendGran} onChange={setTrendGran} accentMap={() => accent} />
+            {/* channel toggles */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {Object.values(CH).map((ch) => {
+                const active = trendChannels.includes(ch.key);
+                return (
+                  <button key={ch.key} onClick={() => toggleTrendChannel(ch.key)} style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    border: `1.5px solid ${active ? ch.color : C.line}`,
+                    borderRadius: 20, padding: "4px 12px", cursor: "pointer", fontSize: 12.5, fontWeight: 600,
+                    background: active ? ch.color + "14" : "transparent",
+                    color: active ? ch.color : C.faint,
+                    transition: "all .12s",
+                  }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: active ? ch.color : C.faint, display: "inline-block", flexShrink: 0 }} />
+                    {ch.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          {/* metric selector */}
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
             {["spends", "revenue", "installs", "impr", "clicks", "roi", "cpi", "ctr"].map((k) => (
               <button key={k} onClick={() => setTrendMetric(k)} style={{
                 border: "none", cursor: "pointer", padding: "5px 10px", borderRadius: 7, fontSize: 12,
                 fontWeight: trendMetric === k ? 650 : 500,
-                background: trendMetric === k ? accent + "1A" : "transparent",
-                color: trendMetric === k ? accent : C.sub,
+                background: trendMetric === k ? "#11161D14" : "transparent",
+                color: trendMetric === k ? C.ink : C.sub,
               }}>{M[k].label}</button>
             ))}
           </div>
         </div>
-        <div style={{ width: "100%", height: 250 }}>
+
+        <div style={{ width: "100%", height: 260 }}>
           <ResponsiveContainer>
             <ComposedChart data={series} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
               <defs>
-                <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={accent} stopOpacity={0.28} />
-                  <stop offset="100%" stopColor={accent} stopOpacity={0.02} />
-                </linearGradient>
+                {Object.values(CH).map((ch) => (
+                  <linearGradient key={ch.key} id={`grad-${ch.key}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={ch.color} stopOpacity={0.18} />
+                    <stop offset="100%" stopColor={ch.color} stopOpacity={0.01} />
+                  </linearGradient>
+                ))}
               </defs>
               <CartesianGrid stroke={C.line2} vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 10.5, fill: C.faint }}
@@ -449,37 +538,45 @@ function Dashboard({ RAW }) {
                 textAnchor={trendGran === "weekly" ? "end" : "middle"}
                 height={trendGran === "weekly" ? 46 : 30}
                 tickLine={false} axisLine={{ stroke: C.line }} />
-              <YAxis tick={{ fontSize: 10.5, fill: C.faint }} tickLine={false} axisLine={false} width={46}
+              <YAxis tick={{ fontSize: 10.5, fill: C.faint }} tickLine={false} axisLine={false} width={52}
                 tickFormatter={(v) => tConf.ratio ? (M[trendMetric].fmt(v)) : cnt(v)} />
               <Tooltip
                 contentStyle={{ borderRadius: 10, border: `1px solid ${C.line}`, fontSize: 12, fontFamily: "inherit" }}
-                formatter={(v) => [M[trendMetric].fmt(v), M[trendMetric].label]} labelFormatter={(l) => l} />
+                formatter={(v, name) => [v != null ? M[trendMetric].fmt(v) : "—", CH[name]?.label || name]}
+                labelFormatter={(l) => l} />
+
+              {/* period highlight bands — only in daily mode */}
               {isDailyTrend && compare && prev && (
-                <ReferenceArea x1={fmtD(prevS)} x2={fmtD(prevE)} strokeOpacity={0} fill={C.neutral} fillOpacity={0.07} />
+                <ReferenceArea x1={fmtD(prevS)} x2={fmtD(prevE)} strokeOpacity={0} fill={C.neutral} fillOpacity={0.06} />
               )}
               {isDailyTrend && (
-                <ReferenceArea x1={fmtD(curS)} x2={fmtD(curE)} strokeOpacity={0} fill={accent} fillOpacity={0.09} />
+                <ReferenceArea x1={fmtD(curS)} x2={fmtD(curE)} strokeOpacity={0} fill="#11161D" fillOpacity={0.04} />
               )}
-              {isDailyTrend && (
-                <Area type="monotone" dataKey="value" stroke="none" fill="url(#g)" isAnimationActive={false} />
-              )}
-              {isDailyTrend && (
-                <Line type="monotone" dataKey="value" stroke={accent} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: accent }} isAnimationActive={false} />
-              )}
-              {!isDailyTrend && (
-                <Bar dataKey="value" radius={[5, 5, 0, 0]} maxBarSize={trendGran === "monthly" ? 130 : 48} isAnimationActive={false}>
-                  {series.map((d, i) => (
-                    <Cell key={i} fill={d.sel ? accent : d.cmp ? C.neutral : accent + "33"} />
-                  ))}
-                </Bar>
-              )}
+
+              {/* render one line (or bar) per active channel */}
+              {isDailyTrend
+                ? Object.values(CH).filter((ch) => trendChannels.includes(ch.key)).map((ch) => (
+                    <Line key={ch.key} type="monotone" dataKey={ch.key}
+                      stroke={ch.color} strokeWidth={ch.key === "overall" ? 2.5 : 1.8}
+                      strokeDasharray={ch.key === "overall" ? undefined : ch.key === "apple" ? "4 3" : undefined}
+                      dot={false} activeDot={{ r: 4, fill: ch.color }}
+                      isAnimationActive={false} connectNulls />
+                  ))
+                : Object.values(CH).filter((ch) => trendChannels.includes(ch.key)).map((ch) => (
+                    <Bar key={ch.key} dataKey={ch.key}
+                      fill={ch.color} radius={[4, 4, 0, 0]}
+                      maxBarSize={trendGran === "monthly" ? 80 : 32}
+                      isAnimationActive={false} />
+                  ))
+              }
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+
         <div style={{ fontSize: 11, color: C.faint, padding: "4px 2px 4px" }}>
           {isDailyTrend
-            ? `Shaded band = selected period${compare && prev ? "; grey band = compare period" : ""}.`
-            : `Solid bar = selected period${compare && prev ? "; grey = compare period" : ""}; lighter bars = other ${trendGran === "weekly" ? "weeks" : "months"}.`}
+            ? `Shaded band = selected period${compare && prev ? "; grey = compare period" : ""}. Overall is solid, Google dashed, Apple dotted.`
+            : `Bars grouped by channel. Select/deselect channels above to compare.`}
         </div>
         <AutoInsight type="trend" A={A} P={P} channel={channel} accent={accent} series={series} trendMetric={trendMetric} trendGran={trendGran} />
       </div>
