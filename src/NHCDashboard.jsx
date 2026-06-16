@@ -607,9 +607,10 @@ function ChannelMix({ days }) {
   const rows = ["google", "meta", "apple"].map((ch) => ({ ch, a: aggregate(days, ch) }));
   const totSpend = rows.reduce((s, r) => s + r.a.spends, 0) || 1;
   const totRev = rows.reduce((s, r) => s + r.a.revenue, 0) || 1;
+  const totInstalls = rows.reduce((s, r) => s + r.a.installs, 0) || 1;
   return (
     <div>
-      {[["Spend", "spends", totSpend, inr], ["Revenue", "revenue", totRev, inr]].map(([title, key, tot, f]) => (
+      {[["Spend", "spends", totSpend, inr], ["Revenue", "revenue", totRev, inr], ["Installs", "installs", totInstalls, cnt]].map(([title, key, tot, f]) => (
         <div key={key} style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 12, color: C.sub, fontWeight: 600, marginBottom: 9 }}>{title}</div>
           <div style={{ display: "flex", height: 12, borderRadius: 6, overflow: "hidden", marginBottom: 10 }}>
