@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 // ─── CONFIG: set these as Environment Variables in Vercel (recommended) ───
 // Project Settings → Environment Variables → add BASIC_AUTH_USER and BASIC_AUTH_PASS
 // If not set, falls back to the defaults below (change these before deploying!)
-const USER = process.env.NHC_perf_user || "nhc";
-const PASS = process.env.Bangalore@#2605 || "changeme123";
+const USER = process.env.BASIC_AUTH_USER || "nhc";
+const PASS = process.env.BASIC_AUTH_PASS || "changeme123";
 
 export function middleware(req) {
   const authHeader = req.headers.get("authorization");
