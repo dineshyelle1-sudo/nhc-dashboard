@@ -29,13 +29,9 @@ const FIELDS = ["spends", "impr", "clicks", "installs", "d0packs", "d7packs", "d
 function dayChannel(rec, ch) {
   if (ch === "overall") {
     const o = {};
+    // Overall = Google + Meta only (Apple Ads excluded entirely)
     FIELDS.forEach((f) => {
-      // Revenue: Google + Meta only (Apple revenue is attributed differently)
-      if (f === "revenue") {
-        o[f] = rec.google[f] + rec.meta[f];
-      } else {
-        o[f] = rec.google[f] + rec.meta[f] + rec.apple[f];
-      }
+      o[f] = rec.google[f] + rec.meta[f];
     });
     o.organic = rec.organic;
     return o;
@@ -133,6 +129,8 @@ const M = {
   cpm: { label: "CPM", fmt: money2, sense: "neg", chart: true, ratio: true },
   cpc: { label: "CPC", fmt: money2, sense: "neg", chart: true, ratio: true },
   d30packs: { label: "D30 Packs", fmt: cnt, sense: "pos", chart: true },
+  d0packs: { label: "D0 Packs", fmt: cnt, sense: "pos", chart: true },
+  packs: { label: "Packs", fmt: cnt, sense: "pos", chart: true },
   organic: { label: "Organic Installs", fmt: cnt, sense: "pos", chart: true },
 };
 
@@ -180,13 +178,18 @@ function Seg({ items, value, onChange, accentMap }) {
 }
 
 /* ----------------------------- main ----------------------------- */
+// Fallback sample data so this component renders standalone in preview.
+// In production (Next.js etc.) the real RAW prop fetched from data.json overrides this.
+const SAMPLE_RAW = [{"date":"2026-05-12","day":"Tuesday","month":"May","organic":1187,"google":{"spends":22527,"impr":416621,"clicks":6922,"installs":179,"d0packs":5,"d7packs":7,"d30packs":7,"revenue":50250},"meta":{"spends":20582,"impr":473053,"clicks":14252,"installs":170,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":13490},"apple":{"spends":0,"impr":0,"clicks":0,"installs":9,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":8890}},{"date":"2026-05-13","day":"Wednesday","month":"May","organic":1221,"google":{"spends":20657,"impr":360010,"clicks":5345,"installs":160,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"meta":{"spends":20203,"impr":566747,"clicks":18103,"installs":183,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"apple":{"spends":0,"impr":0,"clicks":0,"installs":8,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":31936}},{"date":"2026-05-14","day":"Thursday","month":"May","organic":1169,"google":{"spends":19444,"impr":340062,"clicks":4697,"installs":150,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":6200},"meta":{"spends":19824,"impr":623082,"clicks":19206,"installs":219,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"apple":{"spends":0,"impr":0,"clicks":0,"installs":10,"d0packs":0,"d7packs":1,"d30packs":2,"revenue":0}},{"date":"2026-05-15","day":"Friday","month":"May","organic":1076,"google":{"spends":14434,"impr":233186,"clicks":3295,"installs":164,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":10690},"meta":{"spends":17184,"impr":588887,"clicks":16882,"installs":181,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"apple":{"spends":0,"impr":0,"clicks":0,"installs":11,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":32530}},{"date":"2026-05-16","day":"Saturday","month":"May","organic":1264,"google":{"spends":12190,"impr":234489,"clicks":2720,"installs":134,"d0packs":1,"d7packs":2,"d30packs":2,"revenue":8490},"meta":{"spends":15102,"impr":350441,"clicks":6528,"installs":76,"d0packs":0,"d7packs":1,"d30packs":1,"revenue":0},"apple":{"spends":0,"impr":0,"clicks":0,"installs":4,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":16178}},{"date":"2026-05-17","day":"Sunday","month":"May","organic":1418,"google":{"spends":12093,"impr":174874,"clicks":2497,"installs":115,"d0packs":1,"d7packs":2,"d30packs":2,"revenue":10090},"meta":{"spends":16321,"impr":360050,"clicks":8462,"installs":108,"d0packs":2,"d7packs":3,"d30packs":3,"revenue":26530},"apple":{"spends":0,"impr":0,"clicks":0,"installs":8,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":10989}},{"date":"2026-05-18","day":"Monday","month":"May","organic":1410,"google":{"spends":11582,"impr":193864,"clicks":3197,"installs":144,"d0packs":4,"d7packs":7,"d30packs":7,"revenue":43769},"meta":{"spends":18797,"impr":516460,"clicks":13826,"installs":165,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":10540},"apple":{"spends":0,"impr":0,"clicks":0,"installs":5,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":21530}},{"date":"2026-05-19","day":"Tuesday","month":"May","organic":1393,"google":{"spends":11513,"impr":190323,"clicks":3194,"installs":157,"d0packs":0,"d7packs":2,"d30packs":2,"revenue":0},"meta":{"spends":20498,"impr":660955,"clicks":18420,"installs":158,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"apple":{"spends":0,"impr":0,"clicks":0,"installs":6,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0}},{"date":"2026-05-20","day":"Wednesday","month":"May","organic":1210,"google":{"spends":11651,"impr":188852,"clicks":2844,"installs":126,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":10540},"meta":{"spends":18849,"impr":558912,"clicks":16252,"installs":161,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":10540},"apple":{"spends":0,"impr":0,"clicks":0,"installs":8,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0}},{"date":"2026-05-21","day":"Thursday","month":"May","organic":1127,"google":{"spends":11582,"impr":171201,"clicks":2888,"installs":142,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"meta":{"spends":17404,"impr":454806,"clicks":12951,"installs":145,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"apple":{"spends":0,"impr":0,"clicks":0,"installs":11,"d0packs":1,"d7packs":2,"d30packs":2,"revenue":24390}},{"date":"2026-05-22","day":"Friday","month":"May","organic":1000,"google":{"spends":11807,"impr":183751,"clicks":2978,"installs":142,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":14793},"meta":{"spends":21453,"impr":648815,"clicks":18026,"installs":173,"d0packs":1,"d7packs":2,"d30packs":2,"revenue":9990},"apple":{"spends":0,"impr":0,"clicks":0,"installs":6,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":9990}},{"date":"2026-05-23","day":"Saturday","month":"May","organic":1165,"google":{"spends":11746,"impr":188217,"clicks":2901,"installs":149,"d0packs":0,"d7packs":1,"d30packs":1,"revenue":0},"meta":{"spends":23187,"impr":739921,"clicks":23172,"installs":143,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":22490},"apple":{"spends":0,"impr":0,"clicks":0,"installs":9,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":4590}},{"date":"2026-05-24","day":"Sunday","month":"May","organic":1246,"google":{"spends":11516,"impr":155424,"clicks":2775,"installs":135,"d0packs":0,"d7packs":1,"d30packs":1,"revenue":0},"meta":{"spends":20823,"impr":583475,"clicks":17590,"installs":134,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":30980},"apple":{"spends":0,"impr":0,"clicks":0,"installs":0,"d0packs":0,"d7packs":1,"d30packs":1,"revenue":0}},{"date":"2026-05-25","day":"Monday","month":"May","organic":1267,"google":{"spends":11517,"impr":204398,"clicks":3303,"installs":169,"d0packs":3,"d7packs":3,"d30packs":3,"revenue":32070},"meta":{"spends":21387,"impr":363969,"clicks":10730,"installs":81,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":26468},"apple":{"spends":0,"impr":0,"clicks":0,"installs":9,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":26234}},{"date":"2026-05-26","day":"Tuesday","month":"May","organic":1163,"google":{"spends":11952,"impr":158632,"clicks":2143,"installs":126,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":4590},"meta":{"spends":23344,"impr":465853,"clicks":12173,"installs":85,"d0packs":1,"d7packs":3,"d30packs":3,"revenue":10040},"apple":{"spends":0,"impr":0,"clicks":0,"installs":5,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":22490}},{"date":"2026-05-27","day":"Wednesday","month":"May","organic":1038,"google":{"spends":11172,"impr":161936,"clicks":2289,"installs":110,"d0packs":0,"d7packs":1,"d30packs":1,"revenue":0},"meta":{"spends":24628,"impr":528604,"clicks":18443,"installs":89,"d0packs":1,"d7packs":2,"d30packs":2,"revenue":21990},"apple":{"spends":0,"impr":0,"clicks":0,"installs":11,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":32580}},{"date":"2026-05-28","day":"Thursday","month":"May","organic":1147,"google":{"spends":11378,"impr":126730,"clicks":1974,"installs":109,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":10590},"meta":{"spends":22746,"impr":550303,"clicks":20643,"installs":115,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":8490},"apple":{"spends":0,"impr":0,"clicks":0,"installs":0,"d0packs":3,"d7packs":3,"d30packs":3,"revenue":0}},{"date":"2026-05-29","day":"Friday","month":"May","organic":1186,"google":{"spends":9187,"impr":125154,"clicks":2079,"installs":97,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":13490},"meta":{"spends":21348,"impr":502462,"clicks":19932,"installs":124,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":21189},"apple":{"spends":0,"impr":0,"clicks":0,"installs":10,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0}},{"date":"2026-05-30","day":"Saturday","month":"May","organic":1245,"google":{"spends":12844,"impr":193486,"clicks":2741,"installs":131,"d0packs":3,"d7packs":3,"d30packs":3,"revenue":42870},"meta":{"spends":25060,"impr":449274,"clicks":8428,"installs":98,"d0packs":3,"d7packs":4,"d30packs":4,"revenue":45382},"apple":{"spends":0,"impr":0,"clicks":0,"installs":8,"d0packs":5,"d7packs":5,"d30packs":5,"revenue":66056}},{"date":"2026-05-31","day":"Sunday","month":"May","organic":1321,"google":{"spends":10832,"impr":149715,"clicks":2437,"installs":115,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":10590},"meta":{"spends":22430,"impr":345745,"clicks":9648,"installs":81,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"apple":{"spends":0,"impr":0,"clicks":0,"installs":0,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0}},{"date":"2026-06-01","day":"Monday","month":"June","organic":1457,"google":{"spends":14204,"impr":228648,"clicks":3551,"installs":120,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":36389},"meta":{"spends":23105,"impr":684786,"clicks":18951,"installs":123,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"apple":{"spends":0,"impr":0,"clicks":0,"installs":0,"d0packs":4,"d7packs":4,"d30packs":4,"revenue":0}},{"date":"2026-06-02","day":"Tuesday","month":"June","organic":1303,"google":{"spends":13267,"impr":228832,"clicks":3344,"installs":117,"d0packs":3,"d7packs":3,"d30packs":3,"revenue":32670},"meta":{"spends":22118,"impr":728114,"clicks":18030,"installs":139,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":10590},"apple":{"spends":0,"impr":0,"clicks":0,"installs":0,"d0packs":1,"d7packs":2,"d30packs":2,"revenue":0}},{"date":"2026-06-03","day":"Wednesday","month":"June","organic":1203,"google":{"spends":12747,"impr":256468,"clicks":3838,"installs":121,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":6200},"meta":{"spends":25275,"impr":639745,"clicks":6848,"installs":96,"d0packs":3,"d7packs":3,"d30packs":3,"revenue":34419},"apple":{"spends":0,"impr":0,"clicks":0,"installs":0,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":0}},{"date":"2026-06-04","day":"Thursday","month":"June","organic":1225,"google":{"spends":13293,"impr":227781,"clicks":3413,"installs":116,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":19480},"meta":{"spends":34132,"impr":1721983,"clicks":36228,"installs":219,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":17480},"apple":{"spends":0,"impr":0,"clicks":0,"installs":0,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":0}},{"date":"2026-06-05","day":"Friday","month":"June","organic":1098,"google":{"spends":12781,"impr":194474,"clicks":3288,"installs":112,"d0packs":2,"d7packs":3,"d30packs":3,"revenue":25579},"meta":{"spends":32613,"impr":1468846,"clicks":31397,"installs":196,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"apple":{"spends":0,"impr":0,"clicks":0,"installs":0,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0}},{"date":"2026-06-06","day":"Saturday","month":"June","organic":1225,"google":{"spends":13772,"impr":198491,"clicks":3812,"installs":106,"d0packs":4,"d7packs":4,"d30packs":4,"revenue":50008},"meta":{"spends":38196,"impr":1640584,"clicks":33288,"installs":225,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":13135},"apple":{"spends":0,"impr":0,"clicks":0,"installs":0,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0}},{"date":"2026-06-07","day":"Sunday","month":"June","organic":1228,"google":{"spends":13196,"impr":174458,"clicks":3544,"installs":133,"d0packs":3,"d7packs":3,"d30packs":3,"revenue":36519},"meta":{"spends":39201,"impr":1699662,"clicks":35852,"installs":206,"d0packs":3,"d7packs":3,"d30packs":3,"revenue":36979},"apple":{"spends":0,"impr":0,"clicks":0,"installs":8,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0}},{"date":"2026-06-08","day":"Monday","month":"June","organic":1432,"google":{"spends":12989,"impr":209232,"clicks":3997,"installs":108,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":13490},"meta":{"spends":38006,"impr":1831497,"clicks":36676,"installs":246,"d0packs":0,"d7packs":0,"d30packs":0,"revenue":0},"apple":{"spends":0,"impr":0,"clicks":0,"installs":0,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":0}},{"date":"2026-06-09","day":"Tuesday","month":"June","organic":1294,"google":{"spends":17109,"impr":251285,"clicks":4058,"installs":148,"d0packs":4,"d7packs":4,"d30packs":4,"revenue":60929},"meta":{"spends":32444,"impr":1369813,"clicks":26605,"installs":208,"d0packs":1,"d7packs":1,"d30packs":1,"revenue":10990},"apple":{"spends":0,"impr":0,"clicks":0,"installs":9,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":32287}},{"date":"2026-06-10","day":"Wednesday","month":"June","organic":1276,"google":{"spends":18063,"impr":336306,"clicks":5570,"installs":142,"d0packs":2,"d7packs":2,"d30packs":2,"revenue":24979},"meta":{"spends":34123,"impr":1217075,"clicks":24368,"installs":198,"d0packs":3,"d7packs":3,"d30packs":3,"revenue":43468},"apple":{"spends":0,"impr":0,"clicks":0,"installs":17,"d0packs":7,"d7packs":7,"d30packs":7,"revenue":119237}}];
+
 export default function NHCDashboard({ RAW }) {
-  if (!RAW) return null;
-  return <Dashboard RAW={RAW} />;
+  const data = RAW && RAW.length ? RAW : SAMPLE_RAW;
+  return <Dashboard RAW={data} />;
 }
 
 function Dashboard({ RAW }) {
   const [channel, setChannel] = useState("overall");
+  const [packBasis, setPackBasis] = useState("d0"); // "d0" | "d30" — controls which packs metric drives funnel/KPIs/trend
   const [gran, setGran] = useState("monthly");
   const [idx, setIdx] = useState(null);            // index into periods, null => last
   const [compare, setCompare] = useState(true);
@@ -232,8 +235,19 @@ function Dashboard({ RAW }) {
     return { cur: curPeriod, prev: resolvedPrev };
   }, [gran, idx, periods, cStart, cEnd, compareMode, cpStart, cpEnd, compare]);
 
-  const A = useMemo(() => aggregate(cur.days, channel), [cur, channel]);
-  const P = useMemo(() => (compare && prev ? aggregate(prev.days, channel) : null), [prev, channel, compare]);
+  const A = useMemo(() => {
+    const a = aggregate(cur.days, channel);
+    a.packs = packBasis === "d30" ? a.d30packs : a.d0packs;
+    a.purchaseRateBasis = a.installs ? a.packs / a.installs : null;
+    return a;
+  }, [cur, channel, packBasis]);
+  const P = useMemo(() => {
+    if (!(compare && prev)) return null;
+    const p = aggregate(prev.days, channel);
+    p.packs = packBasis === "d30" ? p.d30packs : p.d0packs;
+    p.purchaseRateBasis = p.installs ? p.packs / p.installs : null;
+    return p;
+  }, [prev, channel, compare, packBasis]);
 
   /* trend series at the chosen trend granularity, with current/compare highlighting */
   const tConf = M[trendMetric];
@@ -247,13 +261,14 @@ function Dashboard({ RAW }) {
       const pt = { date: p.start, label: p.label };
       ["overall", "google", "meta", "apple"].forEach((ch) => {
         const ag = aggregate(p.days, ch);
-        pt[ch] = ag[trendMetric] ?? null;
+        const key = trendMetric === "packs" ? (packBasis === "d30" ? "d30packs" : "d0packs") : trendMetric;
+        pt[ch] = ag[key] ?? null;
       });
       pt.sel = p.start <= curE && p.end >= curS;
       pt.cmp = !!(compare && prevS && p.start <= prevE && p.end >= prevS);
       return pt;
     }),
-    [trendPeriods, trendMetric, curS, curE, prevS, prevE, compare]
+    [trendPeriods, trendMetric, curS, curE, prevS, prevE, compare, packBasis]
   );
   const isDailyTrend = trendGran === "daily";
 
@@ -271,11 +286,12 @@ function Dashboard({ RAW }) {
   const isApple = channel === "apple";
 
   /* funnel stages */
+  const packLabel = packBasis === "d30" ? "D30 Packs" : "D0 Packs";
   const stages = [
     { k: "impr", label: "Impressions", val: A.impr, conv: null },
     { k: "clicks", label: "Clicks", val: A.clicks, conv: A.ctr, convLabel: "CTR" },
     { k: "installs", label: "Installs", val: A.installs, conv: A.cvr, convLabel: "Click→Install" },
-    { k: "d30packs", label: "D30 Packs", val: A.d30packs, conv: A.purchaseRate, convLabel: "Install→Pack" },
+    { k: "packs", label: packLabel, val: A.packs, conv: A.purchaseRateBasis, convLabel: "Install→Pack" },
   ];
   const funnelMax = Math.max(...stages.map((s) => s.val), 1);
 
@@ -392,9 +408,9 @@ function Dashboard({ RAW }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 16 }}>
         {[
           ["spends", A.spends], ["installs", A.installs], ["cpi", A.cpi],
-          ["revenue", A.revenue], ["roi", A.roi], ["ctr", A.ctr],
+          ["revenue", A.revenue], ["roi", A.roi], ["ctr", A.ctr], ["packs", A.packs],
         ].map(([k, v]) => {
-          const cfg = M[k];
+          const cfg = k === "packs" ? { ...M.packs, label: packLabel } : M[k];
           const na = isApple && (k === "cpi" || k === "ctr") && !A.spends;
           return (
             <div key={k} className="nhc-card" style={{ padding: "13px 15px" }}>
@@ -403,7 +419,7 @@ function Dashboard({ RAW }) {
                 {na ? "—" : cfg.fmt(v)}
               </div>
               {compare && P && !na && (
-                <div style={{ marginTop: 5 }}><Delta d={delta(v, P[k], cfg.sense)} /></div>
+                <div style={{ marginTop: 5 }}><Delta d={delta(v, k === "packs" ? P.packs : P[k], cfg.sense)} /></div>
               )}
             </div>
           );
@@ -414,8 +430,12 @@ function Dashboard({ RAW }) {
       <div style={{ display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 16, marginBottom: 16 }}>
         {/* funnel */}
         <div className="nhc-card" style={{ padding: "18px 20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-            <div style={{ fontWeight: 650, fontSize: 15 }}>Conversion funnel</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontWeight: 650, fontSize: 15 }}>Conversion funnel</div>
+              <Seg items={[{ key: "d0", label: "D0 Packs" }, { key: "d30", label: "D30 Packs" }]}
+                value={packBasis} onChange={setPackBasis} accentMap={() => accent} />
+            </div>
             <div style={{ fontSize: 11.5, color: C.faint }}>step rate shown between stages</div>
           </div>
 
@@ -470,7 +490,7 @@ function Dashboard({ RAW }) {
           </div>
           {channel === "overall"
             ? <ChannelMix days={cur.days} />
-            : <PackMix A={A} accent={accent} />}
+            : <PackMix A={A} accent={accent} packBasis={packBasis} />}
           <AutoInsight type="breakdown" A={A} P={P} channel={channel} accent={accent} days={cur.days} />
         </div>
       </div>
@@ -509,7 +529,7 @@ function Dashboard({ RAW }) {
           </div>
           {/* metric selector */}
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {["spends", "revenue", "installs", "impr", "clicks", "roi", "cpi", "ctr"].map((k) => (
+            {["spends", "revenue", "installs", "packs", "impr", "clicks", "roi", "cpi", "ctr"].map((k) => (
               <button key={k} onClick={() => setTrendMetric(k)} style={{
                 border: "none", cursor: "pointer", padding: "5px 10px", borderRadius: 7, fontSize: 12,
                 fontWeight: trendMetric === k ? 650 : 500,
@@ -632,33 +652,37 @@ function ChannelMix({ days }) {
   );
 }
 
-function PackMix({ A, accent }) {
+function PackMix({ A, accent, packBasis }) {
   const items = [
-    { label: "D0 Packs", v: A.d0packs },
-    { label: "D7 Packs", v: A.d7packs },
-    { label: "D30 Packs", v: A.d30packs },
+    { key: "d0", label: "D0 Packs", v: A.d0packs },
+    { key: "d7", label: "D7 Packs", v: A.d7packs },
+    { key: "d30", label: "D30 Packs", v: A.d30packs },
   ];
   const max = Math.max(...items.map((i) => i.v), 1);
+  const activeLabel = packBasis === "d30" ? "D30" : "D0";
   return (
     <div>
       <div style={{ fontSize: 12, color: C.sub, marginBottom: 14 }}>
-        Purchase packs maturing over the period — D0 same-day, building to D30.
+        Purchase packs maturing over the period — D0 same-day, building to D30. <b style={{ color: C.ink }}>{activeLabel}</b> drives the funnel above.
       </div>
-      {items.map((it) => (
-        <div key={it.label} style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 5 }}>
-            <span style={{ color: C.sub, fontWeight: 600 }}>{it.label}</span>
-            <span className="nhc-disp" style={{ fontWeight: 700 }}>{intf(it.v)}</span>
+      {items.map((it) => {
+        const active = it.key === packBasis;
+        return (
+          <div key={it.label} style={{ marginBottom: 14, opacity: active ? 1 : 0.65 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 5 }}>
+              <span style={{ color: active ? C.ink : C.sub, fontWeight: active ? 700 : 600 }}>{it.label}{active && " ✓"}</span>
+              <span className="nhc-disp" style={{ fontWeight: 700 }}>{intf(it.v)}</span>
+            </div>
+            <div style={{ height: 10, background: C.line2, borderRadius: 5, overflow: "hidden" }}>
+              <div style={{ width: `${(it.v / max) * 100}%`, height: "100%", background: accent, borderRadius: 5, opacity: active ? 1 : 0.5 }} />
+            </div>
           </div>
-          <div style={{ height: 10, background: C.line2, borderRadius: 5, overflow: "hidden" }}>
-            <div style={{ width: `${(it.v / max) * 100}%`, height: "100%", background: accent, borderRadius: 5 }} />
-          </div>
-        </div>
-      ))}
+        );
+      })}
       <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.line2}`, display: "flex", gap: 20 }}>
         <div>
-          <div style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>Install → D30 Pack</div>
-          <div className="nhc-disp" style={{ fontSize: 17, fontWeight: 700, color: accent }}>{pct(A.purchaseRate)}</div>
+          <div style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>Install → {activeLabel} Pack</div>
+          <div className="nhc-disp" style={{ fontSize: 17, fontWeight: 700, color: accent }}>{pct(A.purchaseRateBasis)}</div>
         </div>
         <div>
           <div style={{ fontSize: 11, color: C.sub, fontWeight: 600 }}>Revenue / Install</div>
@@ -950,11 +974,12 @@ function AutoInsight({ type, A, P, channel, accent, days, series, trendMetric, t
       const bottleneck = impToClick < 0.01 ? "impression→click" : clickToInstall < 0.005 ? "click→install" : null;
       if (bottleneck) insights.push({ icon: "🔍", good: false, text: `Biggest funnel drop-off at ${bottleneck} stage — worth investigating creative or landing page quality.` });
     }
-    // D30 packs
-    if (A.d30packs > 0 && A.installs > 0) {
-      const rate = A.d30packs / A.installs;
-      if (rate > 0.05) insights.push({ icon: "🎯", good: true, text: `${pct(rate)} of installs converted to a D30 pack — healthy downstream monetisation.` });
-      else insights.push({ icon: "💡", good: null, text: `${pct(rate)} install-to-D30-pack rate — room to improve onboarding or pack offer timing.` });
+    // Packs insight (basis-aware: D0 or D30 per toggle)
+    if (A.packs > 0 && A.installs > 0) {
+      const rate = A.purchaseRateBasis;
+      const basisLabel = A.packs === A.d30packs ? "D30" : "D0";
+      if (rate > 0.05) insights.push({ icon: "🎯", good: true, text: `${pct(rate)} of installs converted to a ${basisLabel} pack — healthy downstream monetisation.` });
+      else insights.push({ icon: "💡", good: null, text: `${pct(rate)} install-to-${basisLabel}-pack rate — room to improve onboarding or pack offer timing.` });
     }
   }
 
