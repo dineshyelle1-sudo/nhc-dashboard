@@ -29,9 +29,9 @@ const FIELDS = ["spends", "impr", "clicks", "installs", "d0packs", "d7packs", "d
 function dayChannel(rec, ch) {
   if (ch === "overall") {
     const o = {};
-    // Overall = Google + Meta only (Apple Ads excluded entirely)
+    // Overall = Google + Meta + Apple (fully blended)
     FIELDS.forEach((f) => {
-      o[f] = rec.google[f] + rec.meta[f];
+      o[f] = rec.google[f] + rec.meta[f] + rec.apple[f];
     });
     o.organic = rec.organic;
     return o;
